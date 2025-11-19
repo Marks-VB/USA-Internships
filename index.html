@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Título do App - Nome do projeto -->
+    <title>USA-Internships: Comparador de Oportunidades nos EUA</title>
+    <!-- Carrega Tailwind CSS para estilização responsiva e moderna -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilos globais e responsivos */
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        /* Estilização do botão de IA com sombra e transição */
+        .ai-button {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+        }
+        .ai-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.3);
+        }
+        /* Torna a tabela horizontalmente scrollable em telas pequenas */
+        .responsive-table {
+            display: block;
+            width: 100%;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        @media (min-width: 768px) {
+            .responsive-table { overflow-x: hidden; }
+        }
+        /* Estilo do Modal (pop-up) para a resposta da IA */
+        .modal {
+            display: none; /* Escondido por padrão */
+            position: fixed;
+            z-index: 50;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            backdrop-filter: blur(5px);
+        }
+        .modal-content { animation: slide-in 0.3s ease-out; }
+        @keyframes slide-in {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        /* Estilo para o ícone de ordenação na tabela */
+        .sort-icon { margin-left: 4px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <!-- Modal para a Assistência da IA (Mostra o resultado da chamada à API) -->
+    <div id="ai-modal" class="modal" onclick="closeModal()">
+        <div class="modal-content max-w-lg mx-auto mt-20 p-6 bg-white rounded-xl shadow-2xl" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h3 class="text-2xl font-bold text-indigo-700">Assistência da Gemini AI</h3>
+                <button class="text-gray-400 hover:text-gray-600" onclick="closeModal()">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <p id="ai-recommendation" class="text-gray-700 leading-relaxed text-base"></p>
+            <!-- Indicador de Carregamento -->
+            <div id="ai-loading" class="hidden text-center py-4">
+                <svg class="animate-spin h-5 w-5 mr-3 text-indigo-500 inline-block" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <span class="text-indigo-500 font-medium">Analisando dados e gerando recomendação...</span>
+            </div>
+            <div class="mt-4 text-xs text-gray-500 border-t pt-2">
+                <p>Análise gerada via Endpoint de API. É necessário configurar a chave da Gemini API no seu servidor para que a recomendação funcione.</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Cabeçalho Principal -->
+    <header class="bg-indigo-700 p-6 shadow-2xl">
+        <div class="max-w-6xl mx-auto">
+            <h1 class="text-3xl font-extrabold text-white text-center sm:text-left">USA-Internships: Comparador de Oportunidades</h1>
+            <p class="text-indigo-200 text-center sm:text-left mt-1">Tabela completa com ordenação, comparação A vs. B e Assistência de IA.</p>
+        </div>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="max-w-6xl mx-auto p-4 sm:p-6">
+        <!-- Tabela Completa de Dados (Foco Principal) -->
+        <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-100 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">Tabela de Dados Completa (Clique para Ordenar)</h2>
+            <div class="responsive-table">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <!-- Cabeçalhos da Tabela - Clique para chamar a função sortTable() com a chave de ordenação -->
+                            <th id="nome-header" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortTable('nome')">Estado <span class="sort-icon"></span></th>
+                            <th id="custo-header" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortTable('custo')">Custo de Vida <span class="sort-icon"></span></th>
+                            <th id="salario-header" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortTable('salario')">Salário Mínimo <span class="sort-icon"></span></th>
+                            <th id="poder_compra-header" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortTable('poder_compra')">Poder de Compra <span class="sort-icon"></span></th>
+                            <th id="natureza-header" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortTable('natureza')">Acesso à Natureza <span class="sort-icon"></span></th>
+                            <th id="prob_neve-header" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortTable('prob_neve')">Prob. Neve <span class="sort-icon"></span></th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Clima</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-table-body" class="bg-white divide-y divide-gray-200">
+                        <!-- Conteúdo da tabela é preenchido pelo JavaScript (renderTable) -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Seção de Comparação e IA -->
+        <section class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-100">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">Comparação Lado a Lado</h2>
+
+            <!-- Dropdowns de Seleção A e B -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end mb-6">
+                <div>
+                    <label for="state-a-select" class="block text-sm font-medium text-gray-700 mb-1">Estado A:</label>
+                    <select id="state-a-select" onchange="renderComparison()" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"></select>
+                </div>
+                <div class="hidden sm:block text-center font-bold text-xl text-gray-500 mb-1">VS</div>
+                <div>
+                    <label for="state-b-select" class="block text-sm font-medium text-gray-700 mb-1">Estado B:</label>
+                    <select id="state-b-select" onchange="renderComparison()" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"></select>
+                </div>
+            </div>
+            
+            <!-- Cards de Comparação (A vs B) -->
+            <div id="comparison-cards" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+
+            <!-- Botão de Assistência da IA -->
+            <div class="mt-8 text-center">
+                <button id="ai-assist-button" onclick="getAIAssistance()" class="ai-button bg-indigo-500 text-white font-semibold py-3 px-8 rounded-full shadow-lg hover:bg-indigo-600 disabled:opacity-50 transition duration-300">
+                    <svg class="w-5 h-5 mr-2 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M3.636 5.636l.707.707m0 7.07l.707.707m4.243 1.414l.707.707M12 21h.01M13 12a1 1 0 11-2 0 1 1 0 012 0zm3 2a1 1 0 100-2 1 1 0 000 2z"></path></svg>
+                    Pedir Ajuda da Gemini AI (Recomendação)
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // --- DADOS DO APLICATIVO ---
+        const statesData = [
+            // Lista de objetos com os dados de cada estado
+            { id: 'MI', nome: "Michigan", sigla: "MI", custo: 92.7, salario: 10.30, prob_neve: 10, neve_media: 60.7, destaque: "Indústria Automobilística, Grandes Lagos", ambiente_academico: "Engenharia (UMich)", densidade_pop: 67, acesso_natureza: 8, clima: "4 estações definidas. Invernos muito frios.", poder_compra: (10.30 / 92.7) * 100 },
+            { id: 'ME', nome: "Maine", sigla: "ME", custo: 111.5, salario: 14.20, prob_neve: 10, neve_media: 64.1, destaque: "Paisagens Naturais, Lagostas", ambiente_academico: "Artes Liberais, Biologia Marinha", densidade_pop: 17, acesso_natureza: 10, clima: "Invernos muito frios e rigorosos.", poder_compra: (14.20 / 111.5) * 100 },
+            { id: 'VT', nome: "Vermont", sigla: "VT", custo: 114.5, salario: 13.70, prob_neve: 10, neve_media: 62.1, destaque: "Natureza, Laticínios", ambiente_academico: "Sustentabilidade, Artes Liberais", densidade_pop: 27, acesso_natureza: 9, clima: "4 estações definidas. Invernos muito frios.", poder_compra: (13.70 / 114.5) * 100 },
+            { id: 'LA', nome: "Louisiana", sigla: "LA", custo: 90.7, salario: 7.25, prob_neve: 0, neve_media: 0.0, destaque: "Cultura Creole/Cajun", ambiente_academico: "Artes, Música, Ciências Marinhas", densidade_pop: 45, acesso_natureza: 6, clima: "Subtropical úmido. Verões quentes e muito úmidos.", poder_compra: (7.25 / 90.7) * 100 },
+            { id: 'TX', nome: "Texas", sigla: "TX", custo: 92.8, salario: 7.30, prob_neve: 0, neve_media: 1.4, destaque: "Petróleo, Gás, NASA", ambiente_academico: "Engenharia (petróleo, aero) e Negócios", densidade_pop: 44, acesso_natureza: 5, clima: "Muito variado. Verões muito quentes.", poder_compra: (7.30 / 92.8) * 100 },
+            { id: 'SC', nome: "South Carolina", sigla: "SC", custo: 95.3, salario: 7.30, prob_neve: 0, neve_media: 1.5, destaque: "Hospitalidade Sulista, Praias", ambiente_academico: "Negócios Internacionais, Engenharia", densidade_pop: 62, acesso_natureza: 7, clima: "Subtropical úmido. Invernos amenos.", poder_compra: (7.30 / 95.3) * 100 },
+            { id: 'FL', nome: "Florida", sigla: "FL", custo: 100.3, salario: 13.00, prob_neve: 0, neve_media: 0.0, destaque: "Turismo, Sol e Praias", ambiente_academico: "Hospitalidade e Saúde", densidade_pop: 157, acesso_natureza: 8, clima: "Subtropical/Tropical. Quente e úmido o ano todo.", poder_compra: (13.00 / 100.3) * 100 },
+            { id: 'HI', nome: "Hawaii", sigla: "HI", custo: 190.0, salario: 13.00, prob_neve: 0, neve_media: 0.0, destaque: "Isolamento, Cultura Polinésia", ambiente_academico: "Ciências Marinhas, Astronomia", densidade_pop: 57, acesso_natureza: 10, clima: "Tropical. Quente o ano todo.", poder_compra: (13.00 / 190.0) * 100 }
+        ];
+        
+        let sortKey = 'nome'; // Chave de ordenação inicial (Nome)
+        let sortDir = 'asc'; // Direção de ordenação inicial (Ascendente)
+        let selectedStateA = 'ME'; // Estado A padrão para comparação
+        let selectedStateB = 'FL'; // Estado B padrão para comparação
+
+        // --- FUNÇÕES DE AJUDA ---
+
+        // Localiza um estado pelo seu ID
+        function getStateById(id) { return statesData.find(state => state.id === id); }
+        
+        // Renderiza estrelas para o rank de Natureza (simula 10/10 com 5 estrelas)
+        function renderStars(rank) {
+            let html = '';
+            const numStars = rank / 2;
+            for (let i = 1; i <= 5; i++) {
+                const filled = i <= numStars ? 'text-yellow-400' : 'text-gray-300';
+                html += `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" class="${filled} inline-block"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+            }
+            return html;
+        }
+
+        // Renderiza o ícone de ordenação (seta para cima/baixo)
+        function renderSortIcon() {
+            return `<svg class="w-3 h-3 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${sortDir === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'}"></path></svg>`;
+        }
+
+        // --- FUNÇÕES DE RENDERIZAÇÃO DE UI ---
+
+        // Preenche os dropdowns de comparação (Estado A e Estado B)
+        function renderSelectOptions() {
+            const selectA = document.getElementById('state-a-select');
+            const selectB = document.getElementById('state-b-select');
+            selectA.innerHTML = ''; selectB.innerHTML = '';
+            statesData.forEach(state => {
+                const option = `<option value="${state.id}">${state.nome}</option>`;
+                selectA.innerHTML += option;
+                selectB.innerHTML += option;
+            });
+            // Define os estados selecionados como padrão
+            selectA.value = selectedStateA;
+            selectB.value = selectedStateB;
+        }
+
+        // Renderiza a Tabela de Dados completa com base na ordenação atual
+        function renderTable() {
+            const tbody = document.getElementById('data-table-body');
+            tbody.innerHTML = '';
+            
+            // 1. Limpa os ícones de ordenação de todos os cabeçalhos
+            document.querySelectorAll('.sort-icon').forEach(icon => icon.innerHTML = '');
+
+            // 2. Lógica de ordenação (in-memory)
+            statesData.sort((a, b) => {
+                let comparison = 0;
+                let valA = a[sortKey];
+                let valB = b[sortKey];
+
+                if (typeof valA === 'string') { comparison = valA.localeCompare(valB, 'pt-BR'); } 
+                else { comparison = (valA > valB) ? 1 : (valA < valB) ? -1 : 0; }
+                return sortDir === 'asc' ? comparison : comparison * -1;
+            });
+
+            // 3. Adiciona o ícone de ordenação ao cabeçalho ativo
+            const activeHeader = document.getElementById(`${sortKey}-header`);
+            if (activeHeader) { activeHeader.querySelector('.sort-icon').innerHTML = renderSortIcon(); }
+
+            // 4. Preenche as linhas da tabela
+            statesData.forEach(state => {
+                // Define a cor de fundo do Poder de Compra (índice Power of Purchase / Custo de Vida)
+                const pcColor = state.poder_compra >= 12 ? 'bg-green-100 text-green-800' : state.poder_compra >= 10 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
+                const row = `
+                    <tr class="hover:bg-gray-50 transition duration-150">
+                        <td class="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${state.nome} <span class="text-xs text-gray-500">(${state.sigla})</span></td>
+                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-500">${state.custo.toFixed(1)}</td>
+                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-500">$${state.salario.toFixed(2)}</td>
+                        <td class="px-3 py-4 whitespace-nowrap text-xs">
+                            <span class="px-2 inline-flex leading-5 font-semibold rounded-full ${pcColor}">
+                                ${state.poder_compra.toFixed(2)}%
+                            </span>
+                        </td>
+                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-500">${state.acesso_natureza}/10</td>
+                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-500">${state.prob_neve}/10</td>
+                        <td class="px-3 py-4 text-sm text-gray-500">${state.clima.split('.')[0]}.</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        // Altera a chave e direção da ordenação e redesenha a tabela
+        function sortTable(key) {
+            if (sortKey === key) {
+                sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortKey = key;
+                sortDir = (key === 'nome' || key === 'custo') ? 'asc' : 'desc'; 
+            }
+            renderTable();
+        }
+
+        // Renderiza os dois cards de comparação (Estado A e Estado B)
+        function renderComparison() {
+            const selectA = document.getElementById('state-a-select');
+            const selectB = document.getElementById('state-b-select');
+            selectedStateA = selectA.value;
+            selectedStateB = selectB.value;
+            const stateA = getStateById(selectedStateA);
+            const stateB = getStateById(selectedStateB);
+            const container = document.getElementById('comparison-cards');
+            container.innerHTML = '';
+            
+            if (!stateA || !stateB) return;
+
+            // Função helper para criar o HTML do card
+            function createComparisonCard(state) {
+                const pcColor = state.poder_compra >= 12 ? 'text-green-600' : state.poder_compra >= 10 ? 'text-yellow-600' : 'text-red-600';
+                return `
+                    <div class="p-5 bg-white border border-gray-200 rounded-xl shadow-md">
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">${state.nome} <span class="text-lg text-indigo-500">(${state.sigla})</span></h3>
+                        <div class="space-y-3">
+                            <div class="flex justify-between border-b pb-1">
+                                <span class="text-gray-600 font-medium">Custo de Vida (Índice):</span>
+                                <span class="text-lg font-bold text-gray-800">${state.custo.toFixed(1)}</span>
+                            </div>
+                            <div class="flex justify-between border-b pb-1">
+                                <span class="text-gray-600 font-medium">Salário Mínimo (USD):</span>
+                                <span class="text-lg font-bold text-gray-800">$${state.salario.toFixed(2)}</span>
+                            </div>
+                            <div class="flex justify-between border-b pb-1">
+                                <span class="text-gray-600 font-medium">Poder de Compra:</span>
+                                <span class="text-xl font-extrabold ${pcColor}">${state.poder_compra.toFixed(2)}%</span>
+                            </div>
+                            <div class="flex justify-between border-b pb-1">
+                                <span class="text-gray-600 font-medium">Acesso à Natureza (1-10):</span>
+                                <span class="text-sm pt-1">${renderStars(state.acesso_natureza)} (${state.acesso_natureza})</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600 font-medium">Clima:</span>
+                                <span class="text-sm text-gray-800 w-1/2 text-right">${state.clima.split('.')[0]}.</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            container.innerHTML = createComparisonCard(stateA) + createComparisonCard(stateB);
+        }
+
+        // Funções para abrir/fechar o modal
+        function openModal() { document.getElementById('ai-modal').style.display = 'block'; }
+        function closeModal() { document.getElementById('ai-modal').style.display = 'none'; }
+        
+        // --- FUNÇÃO PRINCIPAL DE CHAMADA À API SERVERLESS ---
+
+        async function getAIAssistance() {
+            const stateA = getStateById(selectedStateA);
+            const stateB = getStateById(selectedStateB);
+
+            // 1. Verificação de seleção e estado de carregamento
+            if (!stateA || !stateB) {
+                document.getElementById('ai-recommendation').innerHTML = '<p class="text-red-500">Por favor, selecione dois estados diferentes para iniciar a assistência da IA.</p>';
+                document.getElementById('ai-loading').classList.add('hidden');
+                openModal();
+                return;
+            }
+
+            document.getElementById('ai-recommendation').innerHTML = '';
+            document.getElementById('ai-loading').classList.remove('hidden');
+            document.getElementById('ai-assist-button').disabled = true;
+            openModal();
+
+            // 2. Monta o payload (corpo da requisição)
+            const payload = {
+                stateA: stateA,
+                stateB: stateB
+            };
+
+            const API_ENDPOINT = '/api/gemini-recommendation'; // Rota Serverless na Vercel
+            let resultText = "Não foi possível obter a recomendação da IA. Verifique a configuração do seu Endpoint Serverless.";
+            const MAX_RETRIES = 3;
+            let delay = 1000;
+
+            // 3. Loop de Requisição com Backoff Exponencial (para lidar com erros temporários)
+            for (let i = 0; i < MAX_RETRIES; i++) {
+                try {
+                    const response = await fetch(API_ENDPOINT, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                         if (response.status === 429) { // Se for erro de taxa limite
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            delay *= 2;
+                            continue;
+                        }
+                        // Trata erros que não são de taxa limite
+                        const errorData = await response.json();
+                        resultText = `Erro do Servidor: ${errorData.message || 'Falha na comunicação com o servidor Serverless.'}`;
+                        throw new Error(resultText); 
+                    }
+
+                    const result = await response.json();
+                    if (result.recommendation) {
+                        resultText = result.recommendation;
+                    } else {
+                        throw new Error('Resposta do endpoint vazia.');
+                    }
+                    
+                    break; // Sai do loop em caso de sucesso
+                } catch (error) {
+                    if (i === MAX_RETRIES - 1) {
+                        console.error('Falha na chamada da API após todas as tentativas:', error);
+                    }
+                }
+            }
+
+            // 4. Finaliza o estado de carregamento e exibe o resultado
+            document.getElementById('ai-loading').classList.add('hidden');
+            document.getElementById('ai-recommendation').innerHTML = resultText.replace(/\n/g, '<br>');
+            document.getElementById('ai-assist-button').disabled = false;
+        }
+        
+        // --- INICIALIZAÇÃO ---
+        document.addEventListener('DOMContentLoaded', () => {
+            renderSelectOptions();
+            // Define a ordenação inicial por nome (A-Z)
+            sortKey = 'nome';
+            sortDir = 'asc'; 
+            renderTable();
+            renderComparison();
+        });
+
+    </script>
+</body>
+</html>
