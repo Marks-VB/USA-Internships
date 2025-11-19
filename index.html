@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Título do App - Nome do projeto -->
     <title>USA-Internships: Comparador de Oportunidades nos EUA</title>
-    <!-- Carrega Tailwind CSS para estilização responsiva e moderna -->
+    <!-- Carrega Tailwind CSS para estilização responsiva e moderna (Aviso: Deve ser instalado via PostCSS em produção) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Estilos globais e responsivos */
@@ -341,15 +341,23 @@
                         body: JSON.stringify(payload)
                     });
 
+                    // Verifica se a resposta foi bem-sucedida
                     if (!response.ok) {
                          if (response.status === 429) { // Se for erro de taxa limite
                             await new Promise(resolve => setTimeout(resolve, delay));
                             delay *= 2;
                             continue;
                         }
-                        // Trata erros que não são de taxa limite
-                        const errorData = await response.json();
-                        resultText = `Erro do Servidor: ${errorData.message || 'Falha na comunicação com o servidor Serverless.'}`;
+                        // Se não for sucesso e não for 429, tenta parsear o erro (se for JSON)
+                        let errorData;
+                        const contentType = response.headers.get("content-type");
+                        if (contentType && contentType.indexOf("application/json") !== -1) {
+                            errorData = await response.json();
+                        } else {
+                            errorData = { message: await response.text() || `Falha HTTP com status: ${response.status}` };
+                        }
+                        
+                        resultText = `Erro do Servidor (${response.status}): ${errorData.message || 'Falha na comunicação com o servidor Serverless.'}`;
                         throw new Error(resultText); 
                     }
 
@@ -365,6 +373,9 @@
                     if (i === MAX_RETRIES - 1) {
                         console.error('Falha na chamada da API após todas as tentativas:', error);
                     }
+                    // Em caso de erro na tentativa, aguarda antes de tentar novamente (Backoff)
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
                 }
             }
 

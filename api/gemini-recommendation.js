@@ -1,23 +1,22 @@
 // Este é o código do Serverless Function (Node.js) para Vercel,
-// usando a biblioteca oficial '@google/genai'.
-
-// IMPORTANTE: Você deve ter 'npm install @google/genai' e 'npm install node-fetch'
-// (se não estiver usando um ambiente Vercel/Node moderno)
+// usando a biblioteca oficial '@google/genai' e o modelo gemini-3-pro-preview.
 
 import { GoogleGenAI } from "@google/genai";
+
 // O método padrão para exportar Serverless Functions na Vercel
 export default async function (req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ message: 'Método não permitido.' });
     }
 
-    // 1. Obter a chave de API de forma segura (process.env.GEMINI_API_KEY)
+    // 1. Obter a chave de API de forma segura
+    // A chave é lida da variável de ambiente GEMINI_API_KEY configurada na Vercel.
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-        return res.status(500).json({ message: 'A chave de API GEMINI_API_KEY não está configurada no servidor Vercel.' });
+        return res.status(500).json({ message: 'A chave de API GEMINI_API_KEY não está configurada no servidor Vercel. Por favor, defina a variável de ambiente.' });
     }
 
-    // 2. Inicializa o cliente com a chave de API
+    // 2. Inicializa o cliente do SDK com a chave de API
     const ai = new GoogleGenAI({ apiKey });
 
     let data;
@@ -60,12 +59,16 @@ export default async function (req, res) {
     // 4. Configuração e Chamada para a API Gemini (usando o SDK)
     try {
         const response = await ai.models.generateContent({
-            // AGORA USANDO gemini-3-pro-preview
+            // Modelo solicitado: gemini-3-pro-preview
             model: "gemini-3-pro-preview", 
             contents: [{ role: "user", parts: [{ text: prompt }] }],
             config: {
-                // O SDK usa 'systemInstruction' diretamente na config
+                // System instruction dentro da config
                 systemInstruction: systemInstruction,
+                // Configuração de thinkingLevel (conforme solicitado)
+                thinkingConfig: {
+                    thinkingLevel: "low",
+                }
             },
         });
 
@@ -75,9 +78,10 @@ export default async function (req, res) {
         if (recommendation) {
             return res.status(200).json({ recommendation });
         } else {
-            return res.status(500).json({ message: 'Falha ao processar a resposta da Gemini API (SDK).' });
+            return res.status(500).json({ message: 'Falha ao processar a resposta da Gemini API (SDK). Resposta vazia.' });
         }
     } catch (error) {
+        // Loga o erro e retorna uma mensagem de erro para o front-end
         console.error('Erro na comunicação com a Gemini API (SDK):', error);
         return res.status(500).json({ message: `Erro interno ao comunicar com o serviço de IA. Detalhe: ${error.message}` });
     }
